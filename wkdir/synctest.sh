@@ -1,51 +1,39 @@
 #!/bin/bash
 
-CCNAME=mycc
-FAILEDPEER=3
-LIVEDPEER=0
-TXPERBLOCK=5
-
 function invoke {
     sleep 2
     let limit=$1
     let index=0
     while [  $index -lt $limit ]; do
-        ./invoke.sh i $CCNAME $LIVEDPEER
+        ./invoke.sh i
         let index=index+1
     done
 }
 
+
+
 ./runyafabric.sh -f 1 -c p -r clearall
-./invoke.sh d
+sleep 3
+
+./invoke.sh di
 invoke 1
 invoke 1
 invoke 1
 
-echo "======================================================"
-echo "============ kill peer$FAILEDPEER"
-echo "======================================================"
-sleep 5
-./runyafabric.sh -k $FAILEDPEER
+sleep 6
+./runyafabric.sh -k 3
 
+invoke 5
+invoke 5
+invoke 5
+invoke 5
+invoke 5
 
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-invoke $TXPERBLOCK $CCNAME $LIVEDPEER
-
-
-echo "======================================================"
-echo "============ start up peer$FAILEDPEER"
-echo "======================================================"
+invoke 5
+invoke 5
 
 sleep 5
-./runyafabric.sh -f 1 -c p -i $FAILEDPEER
+./runyafabric.sh -f 1 -c p -i 3
 
 
 invoke 1

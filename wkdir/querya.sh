@@ -1,8 +1,6 @@
 #!/bin/bash
 
-FABRIC_PATH=github.com/abchain/wood/fabric
-FABRIC_TOP=${GOPATH}/src/$FABRIC_PATH
-
+FABRIC_TOP=${GOPATH}/src/github.com/abchain/fabric
 
 BUILD_BIN=${FABRIC_TOP}/build/bin
 

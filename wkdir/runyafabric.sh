@@ -1,7 +1,12 @@
 #!/bin/bash
+source fabric.profile
 
-while getopts "i:k:c:f:r:" opt; do
+while getopts "i:k:c:f:r:b:" opt; do
   case $opt in
+    b)
+      echo "BUILD_VERSION = $OPTARG"
+      BUILD_VERSION=$OPTARG
+      ;;
     i)
       echo "TARGET_PEER_ID = $OPTARG"
       TARGET_PEER_ID=$OPTARG
@@ -29,32 +34,27 @@ while getopts "i:k:c:f:r:" opt; do
   esac
 done
 
-
-DB_VERSION=0
-
-#CONSENSUS_INPUT=$1
-#NUM_F=$2
-#DB_VERSION=$3
-#TAG_CLEAR=$4
-
-FABRIC_PATH=github.com/abchain/wood/fabric
-FABRIC_TOP=${GOPATH}/src/$FABRIC_PATH
-
-BUILD_BIN=${FABRIC_TOP}/build/bin
-PEER_BINARY=peer
-CONSENSUS=pbft
-
-if [ "$NUM_F" = "" ]; then
-    echo "runyafabric.sh  -c <p|n> -f NUM_F -r -i TARGET_PEER_ID"
-    exit
-fi
+echo 'FABRIC_PATH = '${FABRIC_PATH}
+echo "FABRIC_TOP = $FABRIC_TOP"
 
 
-let NUM_N=$NUM_F*3+1
-if [ "$CONSENSUS_INPUT" = "n" ];then
-    CONSENSUS=noops
-    let NUM_N=$NUM_F
-fi
+function init {
+
+    DB_VERSION=0
+    CONSENSUS=pbft
+
+    if [ "$NUM_F" = "" ]; then
+        echo "runyafabric.sh  -c <p|n> -f NUM_F -r -i TARGET_PEER_ID"
+        exit
+    fi
+
+    let NUM_N=$NUM_F*3+1
+    if [ "$CONSENSUS_INPUT" = "n" ];then
+        CONSENSUS=noops
+        let NUM_N=$NUM_F
+    fi
+
+}
 
 function clearLog {
     echo 'a' > err_nohup_peer0.json
@@ -95,15 +95,10 @@ function runpeers {
         rm -rf /var/hyperledger/production*
     fi
 
-    buildpeer
-    #buildpeerex
-
-    if [ ! -f ${BUILD_BIN}/${PEER_BINARY} ]; then
-        echo 'No such a file: '${BUILD_BIN}'/${PEER_BINARY}'
-        exit -1
-    fi
-
     killbyname peer_fabric_
+
+    build_peer_process ${BUILD_PEER_SCRIPT}
+
 
     index=0
     let allpeer=$NUM_VP
@@ -129,31 +124,19 @@ function runpeers {
 }
 
 
-function buildpeer {
-
-    if [ ! -d ${BUILD_BIN} ]; then
-        mkdir -p ${BUILD_BIN}
-    fi
-
-    if [ -f ${BUILD_BIN}/${PEER_BINARY} ]; then
-        rm ${BUILD_BIN}/${PEER_BINARY}
-    fi
-
+function build_peer {
     CGO_CFLAGS=" " CGO_LDFLAGS="-lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy" \
         GOBIN=${GOPATH}/src/$FABRIC_PATH/build/bin go install $FABRIC_PATH/peer
-
-    if [ ! -f ${BUILD_BIN}/${PEER_BINARY} ]; then
-        echo 'Failed to build '${BUILD_BIN}/${PEER_BINARY}
-        exit -1
-    fi
-
-    if [ ! -L ${BUILD_BIN}/peerex ]; then
-        cd ${BUILD_BIN}
-        ln -s ${PEER_BINARY} peerex
-    fi
 }
 
-function buildpeerex {
+function build_embedded {
+    CGO_CFLAGS=" " CGO_LDFLAGS="-lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy" \
+        GOBIN=${GOPATH}/src/$FABRIC_PATH/build/bin go install $FABRIC_PATH/examples/chaincode/go/embedded
+}
+
+
+
+function build_peer_process {
 
     if [ ! -d ${BUILD_BIN} ]; then
         mkdir -p ${BUILD_BIN}
@@ -163,17 +146,20 @@ function buildpeerex {
         rm ${BUILD_BIN}/${PEER_BINARY}
     fi
 
-    CGO_CFLAGS=" " CGO_LDFLAGS="-lrocksdb -lstdc++ -lm -lz -lbz2 -lsnappy" \
-        GOBIN=${GOPATH}/src/$FABRIC_PATH/build/bin go install $FABRIC_PATH/examples/chaincode/go/embedded
+    if [ -L ${BUILD_BIN}/peerex ]; then
+        rm ${BUILD_BIN}/peerex
+    fi
+
+    $1
 
     if [ ! -f ${BUILD_BIN}/${PEER_BINARY} ]; then
         echo 'Failed to build '${BUILD_BIN}/${PEER_BINARY}
-        exit -1
+        exit
     fi
 
     if [ ! -L ${BUILD_BIN}/peerex ]; then
         cd ${BUILD_BIN}
-        ln -s ${PEER_BINARY} peerex
+        ln -fnsv ${PEER_BINARY} peerex
     fi
 }
 
@@ -276,10 +262,23 @@ function startpeer {
 }
 
 function main {
+
+     if [ "${BUILD_VERSION}" = "6" ]; then
+          build_peer_process build_peer
+          exit
+     fi
+
+     if [ "${BUILD_VERSION}" = "8" ]; then
+          build_peer_process build_embedded
+          exit
+     fi
+
      if [ "$TARGET_STOPPED_PEER_ID" != "" ];then
         killbyname peer_fabric_$TARGET_STOPPED_PEER_ID
         exit
      fi
+
+     init
 
      if [ "$TARGET_PEER_ID" = "" ];then
         runpeers $NUM_N 0 0 $CONSENSUS $NUM_F $TAG_CLEAR
